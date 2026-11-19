@@ -1,0 +1,36 @@
+# 매일 08:30(KST) posts/오늘날짜/post_config.json 이 있으면 인스타·스레드에 게시
+# Actions 탭에서 수동 실행 시 날짜(예: 2026-11-18)를 넣으면 그 날짜 폴더를 게시
+name: daily-cardnews-post
+on:
+  schedule:
+    - cron: "30 23 * * *"   # UTC 23:30 = KST 08:30
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "게시할 폴더 날짜 (비우면 오늘)"
+        required: false
+      dry_run:
+        description: "true면 실제 게시 없이 확인만"
+        required: false
+        default: "false"
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Post card news
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+        run: |
+          D="${{ github.event.inputs.date }}"
+          [ -z "$D" ] && D=$(TZ=Asia/Seoul date +%F)
+          CFG="posts/$D/post_config.json"
+          if [ ! -f "$CFG" ]; then echo "게시할 카드뉴스 없음: $CFG"; exit 0; fi
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            python3 post_to_social.py --config "$CFG" --dry-run
+          else
+            python3 post_to_social.py --config "$CFG"
+          fi
