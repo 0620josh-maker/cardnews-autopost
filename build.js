@@ -1,11 +1,11 @@
-// 카드뉴스 2026-11-19 — "서울 아파트 7곳이 떨어졌다"
-// node build.js  → out/instagram_2026-11-19_{n}of5.png (1080x1350), out/threads_2026-11-19_{n}of5.png (1080x1080)
+// 카드뉴스 2026-11-23 — "동탄 거래 줄자 병점 2배 — 경기 규제지역 풍선효과"
+// node build.js  → out/instagram_2026-11-23_{n}of5.png (1080x1350), out/threads_2026-11-23_{n}of5.png (1080x1080)
 const { chromium } = require('playwright');
 const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
 
-const DATE = '2026-11-19';
+const DATE = '2026-11-23';
 const N = 5;
 const OUT = path.join(__dirname, 'out');
 fs.mkdirSync(OUT, { recursive: true });
@@ -13,87 +13,107 @@ fs.mkdirSync(OUT, { recursive: true });
 const C = { bg: '#F4F1EA', ink: '#0E2A5C', red: '#D12828', mute: '#6B7385', line: '#D9D3C4', card: '#FFFFFF', soft: '#E7EDF7', villa: '#E9A23B' };
 
 // ---------- SVG illustrations ----------
-const skyline = (w = 760) => `
+const moveIllo = (w = 760) => `
 <svg viewBox="0 0 760 300" width="${w}" xmlns="http://www.w3.org/2000/svg">
   <rect x="0" y="270" width="760" height="30" fill="${C.line}"/>
-  ${[[30,150],[130,210],[230,120],[330,190],[430,140],[530,170],[630,110]].map(([x,h],i)=>`<rect x="${x}" y="${270-h}" width="80" height="${h}" fill="${i%2?'#B9C1D0':C.ink}"/>${[0,1,2,3].filter(r=>r*36+24<h-20).map(r=>`<rect x="${x+16}" y="${270-h+16+r*36}" width="18" height="16" fill="#EEF1F6"/><rect x="${x+46}" y="${270-h+16+r*36}" width="18" height="16" fill="#EEF1F6"/>`).join('')}`).join('')}
-  <path d="M60 40 L250 110 L360 80 L600 200" fill="none" stroke="${C.red}" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M640 215 L560 205 L600 150 Z" fill="${C.red}"/>
+  <rect x="40" y="70" width="170" height="200" fill="#B9C1D0"/>
+  ${[0,1,2,3,4].map(r=>[0,1,2].map(c=>`<rect x="${58+c*50}" y="${88+r*38}" width="30" height="22" fill="#EEF1F6"/>`).join('')).join('')}
+  <text x="125" y="55" text-anchor="middle" font-size="28" font-weight="700" fill="${C.mute}">동탄구</text>
+  <rect x="520" y="40" width="190" height="230" fill="${C.ink}"/>
+  ${[0,1,2,3,4,5].map(r=>[0,1,2].map(c=>`<rect x="${540+c*54}" y="${58+r*38}" width="32" height="22" fill="#fff"/>`).join('')).join('')}
+  <text x="615" y="28" text-anchor="middle" font-size="28" font-weight="900" fill="${C.ink}">병점구</text>
+  <path d="M250 150 Q380 60 480 130" fill="none" stroke="${C.red}" stroke-width="14" stroke-linecap="round"/>
+  <path d="M470 90 L510 138 L452 150 Z" fill="${C.red}"/>
 </svg>`;
 
 const icon = {
-  home: `<svg viewBox="0 0 64 64" width="72"><path d="M8 30 L32 8 L56 30 V56 H8 Z" fill="${C.ink}"/><rect x="26" y="36" width="12" height="20" fill="#fff"/></svg>`,
-  key: `<svg viewBox="0 0 64 64" width="72"><circle cx="22" cy="32" r="14" fill="none" stroke="${C.ink}" stroke-width="7"/><path d="M34 32 H58 M50 32 V42 M58 32 V42" stroke="${C.ink}" stroke-width="7" stroke-linecap="round"/></svg>`,
+  loan: `<svg viewBox="0 0 64 64" width="72"><path d="M6 24 L32 8 L58 24 Z" fill="${C.ink}"/><path d="M14 28 V50 M26 28 V50 M38 28 V50 M50 28 V50 M8 54 H56" stroke="${C.ink}" stroke-width="6"/></svg>`,
   pin: `<svg viewBox="0 0 64 64" width="72"><path d="M32 60 C32 60 12 38 12 24 A20 20 0 0 1 52 24 C52 38 32 60 32 60Z" fill="${C.red}"/><circle cx="32" cy="24" r="8" fill="#fff"/></svg>`,
+  swap: `<svg viewBox="0 0 64 64" width="72"><circle cx="32" cy="32" r="26" fill="#fff" stroke="${C.ink}" stroke-width="5"/><path d="M18 26 H44 L38 20 M46 38 H20 L26 44" fill="none" stroke="${C.ink}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  doc: `<svg viewBox="0 0 64 64" width="64"><path d="M14 6 H40 L52 18 V58 H14 Z" fill="#fff" stroke="${C.ink}" stroke-width="5"/><path d="M22 28 H44 M22 38 H44 M22 48 H36" stroke="${C.ink}" stroke-width="4"/></svg>`,
+  pct: `<svg viewBox="0 0 64 64" width="64"><circle cx="32" cy="32" r="26" fill="#fff" stroke="${C.ink}" stroke-width="5"/><path d="M22 44 L42 20" stroke="${C.red}" stroke-width="5" stroke-linecap="round"/><circle cx="23" cy="24" r="5" fill="${C.ink}"/><circle cx="41" cy="40" r="5" fill="${C.ink}"/></svg>`,
 };
 
-function negBars(items, max) {
+function bars(items, max, fmt) {
   return items.map(it => `
     <div class="bar-row">
       <div class="bar-label">${it.label}</div>
       <div class="bar-track"><div class="bar-fill" style="width:${(Math.abs(it.v) / max) * 100}%;background:${it.color}"></div></div>
-      <div class="bar-val" style="color:${it.color}">${it.v.toFixed(2)}%</div>
+      <div class="bar-val" style="color:${it.color}">${fmt(it.v)}</div>
     </div>`).join('');
 }
 
 // ---------- cards ----------
 function cards(k) {
-  const trend = [['10/12','0.16'],['10/19','0.13'],['10/26','0.09'],['11/2','0.07'],['11/9','0.07'],['11/16','0.03']];
+  const sp = v => (v > 0 ? '+' : '−') + Math.abs(v).toFixed(1) + '%';
+  const H = v => Math.round(v / 1310 * 270 * k);
   return [
   // 1 HOOK
-  `<div class="badge">한국부동산원 11월 3주 주간동향</div>
-   <h1 class="hook">서울 아파트<br><span class="red">7곳</span>이<br>떨어졌다</h1>
-   <div class="illo">${skyline(Math.round(820*k))}</div>
-   <div class="hook-sub"><b>서울 이번 주</b> <span class="red">+0.03%</span> · 하락 구 5곳 → <span class="red">7곳</span></div>`,
+  `<div class="badge">국토부 실거래가 · 경기 3분기(7~9월)</div>
+   <h1 class="hook">동탄 거래 줄자<br>옆동네 <span class="red">병점</span>이<br>2배 뛰었다</h1>
+   <div class="illo">${moveIllo(Math.round(820*k))}</div>
+   <div class="hook-sub"><b>3분기 거래</b>  동탄구 <span class="red">−772건</span> · 병점구 <span class="red">+594건</span></div>`,
 
-  // 2 DECLINING DISTRICTS
-  `<div class="kicker">11월 3주 서울 아파트 매매 · 전주 대비</div>
-   <h2>하락한 구,<br><span class="red">송파가 -0.42%</span></h2>
+  // 2 REGULATED vs NON
+  `<div class="kicker">경기 아파트 매매 · 3분기 전년 동기 대비</div>
+   <h2>전체는 늘었는데<br><span class="red">규제지역</span>만 줄었다</h2>
    <div class="panel">
-     ${negBars([
-       { label: '송파구', v: -0.42, color: C.red },
-       { label: '서초구', v: -0.31, color: C.red },
-       { label: '강남구', v: -0.30, color: C.red },
-       { label: '성동구', v: -0.04, color: C.ink },
-       { label: '용산구', v: -0.02, color: C.ink },
-       { label: '강동구', v: -0.01, color: '#8A93A6' },
-       { label: '동작구', v: -0.01, color: '#8A93A6' },
-     ], 0.45)}
+     ${bars([
+       { label: '경기 전체', v: 16.0, color: C.ink },
+       { label: '규제지역 15곳', v: -25.7, color: C.red },
+       { label: '비규제지역', v: 49.3, color: '#8A93A6' },
+     ], 52, sp)}
+     <div class="note">경기 전체 3만851건 → 3만5788건</div>
    </div>
-   <p class="body">용산은 6주 만에, 동작은 이번 주 <b>하락 전환</b>했어요.</p>`,
+   <p class="body">규제지역 거래 비중이<br><b>44.4% → 28.5%</b>로 낮아졌어요.</p>`,
 
-  // 3 TREND
-  `<div class="kicker">서울 아파트 주간 상승률 · 기준일</div>
-   <h2>상승폭이 6주 새<br><span class="red">0.16% → 0.03%</span></h2>
+  // 3 DONGTAN vs BYEONGJEOM
+  `<div class="kicker">같은 화성시 · 3분기 거래량</div>
+   <h2>동탄은 <span class="red">반토막</span>,<br>병점은 <span class="red">2배 넘게</span></h2>
    <div class="panel duo">
-     <div class="vbars" style="gap:${Math.round(26*k)}px">
-       ${trend.map(([d,v],i)=>`<div class="vb"><div class="vb-val ${i===5?'red':''}" style="font-size:${Math.round(34*k)}px">${v}%</div><div class="vb-bar" style="width:${Math.round(96*k)}px;height:${Math.round(+v*k*1500)}px;background:${i===5?C.red:'#C9CFDA'}"></div><div class="vb-y" style="font-size:${Math.round(26*k)}px">${d}</div></div>`).join('')}
+     <div class="col">
+       <div class="col-h">동탄구(규제)</div>
+       <div class="vbars">
+         <div class="vb"><div class="vb-val">1,310</div><div class="vb-bar" style="height:${H(1310)}px;background:#C9CFDA"></div><div class="vb-y">작년</div></div>
+         <div class="vb"><div class="vb-val ink">538</div><div class="vb-bar" style="height:${H(538)}px;background:${C.ink}"></div><div class="vb-y">올해</div></div>
+       </div>
+     </div>
+     <div class="col">
+       <div class="col-h">병점구(비규제)</div>
+       <div class="vbars">
+         <div class="vb"><div class="vb-val">466</div><div class="vb-bar" style="height:${H(466)}px;background:#C9CFDA"></div><div class="vb-y">작년</div></div>
+         <div class="vb"><div class="vb-val red">1,060</div><div class="vb-bar" style="height:${H(1060)}px;background:${C.red}"></div><div class="vb-y">올해</div></div>
+       </div>
      </div>
    </div>
-   <p class="body">그래도 상승은 작년 2월 첫째 주부터<br><b>93주 연속</b>이에요.</p>`,
+   <p class="body">동탄 <b>−58.9%</b> · 병점 <b>+127.5%</b><br>거래량 순서가 뒤바뀌었어요.</p>`,
 
-  // 4 GYEONGGI + JEONSE
-  `<div class="kicker">서울 밖, 그리고 전세</div>
-   <h2>매매는 식고<br><span class="red">전세</span>는 더 올랐다</h2>
+  // 4 BACKGROUND
+  `<div class="kicker">숫자로 보는 배경</div>
+   <h2>규제 직후<br>거래가 옮겨갔다</h2>
    <div class="facts">
-     <div class="fact">${icon.pin}<div><div class="f-t">경기 <span class="red">+0.21%</span> · 서울의 7배</div><div class="f-s">수원 권선 0.62% 전국 1위 · 안양 동안 0.61%</div></div></div>
-     <div class="fact">${icon.key}<div><div class="f-t">서울 전세 올해 누적 <span class="red">+9.43%</span></div><div class="f-s">같은 기간 매매 누적 8.91%</div></div></div>
-     <div class="fact">${icon.home}<div><div class="f-t">강남구 매매 -0.30%, 전세 <span class="red">+0.22%</span></div><div class="f-s">송파 전세 +0.09% · 서초 +0.01%</div></div></div>
+     <div class="fact">${icon.loan}<div><div class="f-t">LTV 비규제 <span class="red">70%</span> · 규제 40%</div><div class="f-s">동탄·기흥·구리 7/1부터 규제 적용</div></div></div>
+     <div class="fact">${icon.swap}<div><div class="f-t">신규 규제 3곳 <span class="red">−46.3%</span></div><div class="f-s">3분기 2,958건 → 1,589건</div></div></div>
+     <div class="fact">${icon.pin}<div><div class="f-t">군포 +117.4% · 권선 +110.4%</div><div class="f-s">오산 +99.3% · 부천 원미 +94.2%</div></div></div>
+   </div>
+   <div class="trend">
+     <div class="trend-h">신규 규제 3곳, <b>상반기엔 거래 급증</b></div>
+     <div class="trend-row"><div class="tr"><div class="tr-v">6,309건</div><div class="tr-m">작년 상반기</div></div><div class="tr-arrow">›</div><div class="tr"><div class="tr-v">1만4,264건</div><div class="tr-m">올해 상반기 (+126.1%)</div></div></div>
    </div>`,
 
-  // 5 CTA
-  `<div class="kicker">정리하면</div>
+  // 5 SUMMARY + CTA
+  `<div class="kicker">한눈에 정리</div>
    <div class="checks">
-     <div class="chk"><div><b>서울 상승폭</b> 6주 새 0.16%→0.03%, 하락 구 7곳</div></div>
-     <div class="chk"><div><b>강남3구</b> 모두 하락, 전세는 아직 상승</div></div>
-     <div class="chk"><div><b>경기</b> 10주 연속 서울 상승률 웃돌아</div></div>
+     <div class="chk">${icon.pct}<div><b>거래</b> 규제 15곳 −25.7%, 비규제 +49.3%</div></div>
+     <div class="chk">${icon.doc}<div><b>가격</b> 11월 3주 권선구 0.62% · 동탄구 0.35%</div></div>
+     <div class="chk">${icon.swap}<div><b>대출</b> 규제 여부에 따라 LTV 70% vs 40%</div></div>
    </div>
    <div class="cta">
-     <div class="cta-q">서울 집값, 어디로?</div>
-     <div class="opts"><div class="opt">① 조정 시작</div><div class="opt">② 곧 다시 상승</div><div class="opt">③ 경기·수도권이 대세</div></div>
+     <div class="cta-q">풍선효과, 어떻게 보세요?</div>
+     <div class="opts"><div class="opt">① 규제 효과가 있다</div><div class="opt">② 거래만 옮겨간 것</div><div class="opt">③ 아직 잘 모르겠다</div></div>
      <div class="cta-s">💬 번호로 댓글 남겨주세요</div>
    </div>
-   <div class="src">출처: 한국부동산원 11월 3주(16일 기준, 19일 발표) 주간 아파트가격 동향, 이투데이·아시아경제 보도 · 투자 권유 아님</div>`,
+   <div class="src">출처: 이투데이 2026-11-23 '동탄 아파트 거래 772건 줄 때 병점은 594건 늘었다'(국토교통부 실거래가 분석) · 한국부동산원 11월 3주 · 3분기 거래 기준 · 투자 권유 아님</div>`,
   ];
 }
 
