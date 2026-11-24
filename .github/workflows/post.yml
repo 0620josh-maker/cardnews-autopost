@@ -1,9 +1,14 @@
-# 매일 08:30(KST) posts/오늘날짜/post_config.json 이 있으면 인스타·스레드에 게시
-# Actions 탭에서 수동 실행 시 날짜(예: 2026-11-18)를 넣으면 그 날짜 폴더를 게시
+# 06:40(KST) 예약 작업이 posts/오늘날짜/post_config.json 을 push 하면 시작해서
+# 08:30(KST)까지 기다렸다가 인스타·스레드에 게시한다.
+# (cron 스케줄은 GitHub 서버 사정으로 몇 시간씩 밀려서 push 트리거로 바꿈 — 중복 게시 방지를 위해 cron은 제거)
+# 게시를 막으려면 08:30 전에 posts/오늘날짜/ 폴더(또는 post_config.json)를 삭제하면 된다.
+# Actions 탭에서 수동 실행 시 날짜(예: 2026-11-18)를 넣으면 그 날짜 폴더를 즉시 게시한다.
 name: daily-cardnews-post
 on:
-  schedule:
-    - cron: "30 23 * * *"   # UTC 23:30 = KST 08:30
+  push:
+    branches: [main]
+    paths:
+      - "posts/*/post_config.json"
   workflow_dispatch:
     inputs:
       date:
@@ -13,9 +18,13 @@ on:
         description: "true면 실제 게시 없이 확인만"
         required: false
         default: "false"
+concurrency:
+  group: daily-cardnews-post
+  cancel-in-progress: false
 jobs:
   post:
     runs-on: ubuntu-latest
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
       - name: Post card news
@@ -24,12 +33,31 @@ jobs:
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
           THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          EVENT: ${{ github.event_name }}
+          INPUT_DATE: ${{ github.event.inputs.date }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
-          D="${{ github.event.inputs.date }}"
+          D="$INPUT_DATE"
           [ -z "$D" ] && D=$(TZ=Asia/Seoul date +%F)
           CFG="posts/$D/post_config.json"
           if [ ! -f "$CFG" ]; then echo "게시할 카드뉴스 없음: $CFG"; exit 0; fi
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+
+          if [ "$EVENT" = "push" ]; then
+            # 오늘 날짜 폴더가 아닌 push(예: 과거 폴더 수정)는 게시하지 않음
+            echo "push 트리거: 08:30(KST)까지 대기"
+            NOW=$(date +%s)
+            TARGET=$(TZ=Asia/Seoul date -d "$D 08:30:00" +%s)
+            if [ "$NOW" -lt "$TARGET" ]; then
+              echo "대기 $((TARGET-NOW))초"
+              sleep $((TARGET-NOW))
+            fi
+            # 대기 중 폴더가 삭제됐는지(게시 취소) 최신 상태로 다시 확인
+            git fetch --depth=1 origin main
+            git reset --hard origin/main
+            if [ ! -f "$CFG" ]; then echo "게시 취소됨(폴더 삭제): $CFG"; exit 0; fi
+          fi
+
+          if [ "$DRY_RUN" = "true" ]; then
             python3 post_to_social.py --config "$CFG" --dry-run
           else
             python3 post_to_social.py --config "$CFG"
